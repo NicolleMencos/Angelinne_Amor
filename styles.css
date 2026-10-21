@@ -307,3 +307,40 @@ footer span{color:var(--lilac);font-weight:500}
   transform: scale(1.05);
   background: rgba(60, 40, 100, 0.9);
 }
+
+/* ===== Pantalla de bienvenida ===== */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(7, 5, 12, 0.96);
+  transition: opacity 0.6s ease;
+}
+.welcome-overlay.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+.welcome-box {
+  max-width: 420px;
+  text-align: center;
+  padding: 36px 28px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: 0 0 40px rgba(165, 107, 255, 0.25);
+}
+.welcome-emoji { font-size: 54px; margin-bottom: 10px; }
+.welcome-box h2 { font-size: 34px; margin-bottom: 14px; }
+.welcome-box p { color: var(--muted); margin-bottom: 24px; }
+.welcome-btn {
+  padding: 14px 28px;
+  border: none;
+  border-radius: 999px;
+  background: var(--grad);
+  color: #1a1026;
+  font: 700 15px 'Outfit', sans-serif;
+  cursor: pointer;
+}
