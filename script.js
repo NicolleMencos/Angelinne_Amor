@@ -41,35 +41,56 @@ document.addEventListener("DOMContentLoaded", () => {
 (() => {
   const MUSIC_SRC = "musica/cancion.mp3"; // cambia el nombre si tu archivo se llama distinto
   const VOLUME = 0.6;
-  const K_STATE = "musica-estado"; // "on" | "off" (off = pausada por ella)
+  const K_STATE = "musica-estado"; // "on" | "off"
   const K_TIME = "musica-tiempo";
+  const K_STAMP = "musica-stamp";
 
   const audio = new Audio(MUSIC_SRC);
   audio.loop = true;
   audio.volume = VOLUME;
   audio.preload = "auto";
 
-  // Retomar donde se quedó al cambiar de página
-  const savedTime = parseFloat(sessionStorage.getItem(K_TIME)) || 0;
-  audio.addEventListener("loadedmetadata", () => {
-    if (savedTime && savedTime < audio.duration) audio.currentTime = savedTime;
-  });
+  // --- Calcular desde dónde retomar ---
+  let resumeAt = parseFloat(sessionStorage.getItem(K_TIME)) || 0;
+  const stamp = parseFloat(sessionStorage.getItem(K_STAMP)) || 0;
+  if (resumeAt && stamp && sessionStorage.getItem(K_STATE) === "on") {
+    resumeAt += (Date.now() - stamp) / 1000; // tiempo que tardó en cargar la página
+  }
 
-  const saveTime = () => sessionStorage.setItem(K_TIME, audio.currentTime);
-  setInterval(() => { if (!audio.paused) saveTime(); }, 500);
+  let seeked = false;
+  const applySeek = () => {
+    if (seeked || !resumeAt || !isFinite(audio.duration) || audio.duration <= 0) return;
+    audio.currentTime = resumeAt % audio.duration;
+    seeked = true;
+  };
+  audio.addEventListener("loadedmetadata", applySeek);
+  audio.addEventListener("canplay", applySeek);
+  audio.addEventListener("playing", applySeek); // clave en iPhone
+
+  // --- Guardar posición de forma fiable ---
+  const saveTime = () => {
+    if (!seeked && resumeAt) return; // no pisar el valor antes de haber retomado
+    sessionStorage.setItem(K_TIME, audio.currentTime);
+    sessionStorage.setItem(K_STAMP, Date.now());
+  };
+  audio.addEventListener("timeupdate", saveTime);
   window.addEventListener("pagehide", saveTime);
+  document.addEventListener("visibilitychange", saveTime);
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("a[href]")) saveTime(); // justo antes de cambiar de página
+  }, true);
 
-  // Botón flotante de música
+  // --- Botón flotante ---
   const btn = document.createElement("button");
   btn.className = "music-btn";
   btn.type = "button";
   btn.setAttribute("aria-label", "Pausar o reproducir música");
   const refreshBtn = () =>
-  (btn.textContent = audio.paused ? "▶ REPRODUCIR MÚSICA" : "⏸ PAUSAR MÚSICA");
+    (btn.textContent = audio.paused ? "▶ REPRODUCIR MÚSICA" : "⏸ PAUSAR MÚSICA");
 
   btn.addEventListener("click", () => {
     if (audio.paused) {
-      audio.play();
+      audio.play().catch(() => {});
       sessionStorage.setItem(K_STATE, "on");
     } else {
       audio.pause();
@@ -86,17 +107,19 @@ document.addEventListener("DOMContentLoaded", () => {
     refreshBtn();
 
     if (state === "on") {
-      // Ya había dado clic antes: intentar continuar la música
       audio.play().catch(() => {
-        // Si el navegador lo bloquea, arranca con el primer toque
+        // El móvil bloquea el autoplay: arranca con el primer toque
         const resume = () => {
-          audio.play();
-          window.removeEventListener("pointerdown", resume);
+          audio.play().catch(() => {});
+          ["pointerdown", "touchend", "click"].forEach((ev) =>
+            window.removeEventListener(ev, resume)
+          );
         };
-        window.addEventListener("pointerdown", resume);
+        ["pointerdown", "touchend", "click"].forEach((ev) =>
+          window.addEventListener(ev, resume)
+        );
       });
     } else if (state === null) {
-      // Primera vez: pantalla de bienvenida
       const overlay = document.createElement("div");
       overlay.className = "welcome-overlay";
       overlay.innerHTML = `
@@ -117,6 +140,11 @@ document.addEventListener("DOMContentLoaded", () => {
         setTimeout(() => overlay.remove(), 600);
       });
     }
+  };
+
+  if (document.body) init();
+  else document.addEventListener("DOMContentLoaded", init);
+})();
   };
 
   if (document.body) init();
